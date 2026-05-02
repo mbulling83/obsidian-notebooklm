@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { HttpRpcSession } from "../../src/api/session";
+import { NotebookLMAuthError } from "../../src/api/client";
 
 const makeAuth = () => ({
   cookieHeader: "SID=abc; HSID=def",
@@ -29,13 +30,16 @@ describe("HttpRpcSession.rpcCall", () => {
     expect((init as RequestInit).body as string).toContain("at=mycsrf");
   });
 
-  it("throws on HTTP 401 response", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-    }));
+  it("throws NotebookLMAuthError on 401", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     const session = new HttpRpcSession(makeAuth());
-    await expect(session.rpcCall("wXbhsf", [])).rejects.toThrow();
+    await expect(session.rpcCall("wXbhsf", [])).rejects.toThrow(NotebookLMAuthError);
+  });
+
+  it("throws NotebookLMAuthError on 403", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    const session = new HttpRpcSession(makeAuth());
+    await expect(session.rpcCall("wXbhsf", [])).rejects.toThrow(NotebookLMAuthError);
   });
 
   it("throws on HTTP 500 response", async () => {
