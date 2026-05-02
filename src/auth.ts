@@ -42,21 +42,35 @@ export async function runOAuthFlow(): Promise<StoredAuth> {
 
     win.loadURL("https://notebooklm.google.com/");
 
-    win.webContents.on("did-navigate", async (_, url) => {
-      if (!url.includes("notebooklm.google.com")) return;
+    // did-finish-load fires after each full page load — including after Google redirects
+    // back to NotebookLM post-login. We silently retry on every load until it succeeds.
+    win.webContents.on("did-finish-load", async () => {
+      const url = win.webContents.getURL();
+      if (!url.startsWith("https://notebooklm.google.com/")) return;
 
       try {
         const allCookies = await win.webContents.session.cookies.get({ domain: ".google.com" });
+        // Only proceed if a real session cookie is present (user is logged in)
+        const hasSid = allCookies.some(c => c.name === "SID" || c.name === "__Secure-1PSID");
+        if (!hasSid) return;
+
         const cookieHeader = allCookies.map((c) => `${c.name}=${c.value}`).join("; ");
 
-        // Fetch CSRF token and session ID from NotebookLM homepage
-        const { csrfToken, sessionId } = await fetchTokens(cookieHeader);
+        // Extract tokens directly from the loaded page — avoids cross-context fetch issues
+        const html: string = await win.webContents.executeJavaScript(
+          "document.documentElement.innerHTML"
+        );
+        const csrfMatch = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+        const sessionMatch = html.match(/"FdrFJe"\s*:\s*"([^"]+)"/);
+        if (!csrfMatch || !sessionMatch) return; // Page still loading, wait for next load
+
+        const csrfToken = csrfMatch[1];
+        const sessionId = sessionMatch[1];
 
         win.close();
         finish(() => resolve({ cookieHeader, csrfToken, sessionId, connectedAt: Date.now() }));
-      } catch (err) {
-        win.close();
-        finish(() => reject(err));
+      } catch {
+        // Not ready yet — keep window open for user to complete login
       }
     });
 
