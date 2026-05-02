@@ -14,13 +14,18 @@ export interface StoredAuth {
  */
 export async function runOAuthFlow(): Promise<StoredAuth> {
   // BrowserWindow is only available in Electron desktop context
-  const { BrowserWindow, session: electronSession } = (window as unknown as {
-    require: (m: string) => { BrowserWindow: typeof import("electron").BrowserWindow; session: typeof import("electron").session }
+  const { BrowserWindow } = (window as unknown as {
+    require: (m: string) => { BrowserWindow: typeof import("electron").BrowserWindow }
   }).require("electron").remote ?? (window as unknown as {
     require: (m: string) => unknown
   }).require("@electron/remote");
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (!settled) { settled = true; fn(); }
+    };
+
     const win = new BrowserWindow({
       width: 500,
       height: 700,
@@ -33,22 +38,21 @@ export async function runOAuthFlow(): Promise<StoredAuth> {
       if (!url.includes("notebooklm.google.com")) return;
 
       try {
-        const ses = electronSession.fromPartition("persist:notebooklm") ?? win.webContents.session;
-        const allCookies = await ses.cookies.get({ domain: ".google.com" });
+        const allCookies = await win.webContents.session.cookies.get({ domain: ".google.com" });
         const cookieHeader = allCookies.map((c) => `${c.name}=${c.value}`).join("; ");
 
         // Fetch CSRF token and session ID from NotebookLM homepage
         const { csrfToken, sessionId } = await fetchTokens(cookieHeader);
 
         win.close();
-        resolve({ cookieHeader, csrfToken, sessionId, connectedAt: Date.now() });
+        finish(() => resolve({ cookieHeader, csrfToken, sessionId, connectedAt: Date.now() }));
       } catch (err) {
         win.close();
-        reject(err);
+        finish(() => reject(err));
       }
     });
 
-    win.on("closed", () => reject(new Error("Auth window closed by user")));
+    win.on("closed", () => finish(() => reject(new Error("Auth window closed by user"))));
   });
 }
 
