@@ -1,3 +1,4 @@
+import { requestUrl } from "obsidian";
 import type { RpcSession } from "./types";
 import {
   buildUrl,
@@ -19,21 +20,24 @@ export class HttpRpcSession implements RpcSession {
   async rpcCall(methodId: string, params: unknown[], sourcePath = "/"): Promise<unknown> {
     const url = buildUrl(methodId, this.auth.sessionId, sourcePath);
     const body = buildRequestBody(encodeRpcRequest(methodId, params), this.auth.csrfToken);
-    const response = await fetch(url, {
+    // Use Obsidian's requestUrl — unlike fetch(), it allows setting the Cookie header
+    // (Cookie is a forbidden header in the browser Fetch API and gets silently stripped)
+    const response = await requestUrl({
+      url,
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
         Cookie: this.auth.cookieHeader,
       },
       body,
+      throw: false,
     });
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        throw new NotebookLMAuthError();
-      }
+    if (response.status === 401 || response.status === 403) {
+      throw new NotebookLMAuthError();
+    }
+    if (response.status < 200 || response.status >= 300) {
       throw new Error(`HTTP ${response.status} for ${methodId}`);
     }
-    const text = await response.text();
-    return parseRpcResponse(text, methodId);
+    return parseRpcResponse(response.text, methodId);
   }
 }
