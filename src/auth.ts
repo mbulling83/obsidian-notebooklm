@@ -40,7 +40,7 @@ export async function runOAuthFlow(): Promise<StoredAuth> {
       webPreferences: { nodeIntegration: false, contextIsolation: true },
     });
 
-    win.loadURL("https://accounts.google.com/ServiceLogin?service=notebooklm");
+    win.loadURL("https://notebooklm.google.com/");
 
     win.webContents.on("did-navigate", async (_, url) => {
       if (!url.includes("notebooklm.google.com")) return;
