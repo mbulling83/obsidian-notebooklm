@@ -8,6 +8,7 @@ export class PullModal extends Modal {
   private notebook: NlmNotebook | null = null;
   private sources: NlmSource[] = [];
   private selected: Set<string> = new Set();
+  private trackedIds: Map<string, TFile> = new Map();
 
   constructor(app: App, private plugin: NotebookLMPlugin) {
     super(app);
@@ -17,7 +18,21 @@ export class PullModal extends Modal {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Pull from NotebookLM" });
 
-    const notebooks = await this.plugin.getNotebooks();
+    let notebooks: NlmNotebook[];
+    try {
+      notebooks = await this.plugin.getNotebooks();
+    } catch (e) {
+      contentEl.createEl("p", { text: `Failed to load notebooks: ${(e as Error).message}` });
+      return;
+    }
+
+    // Build trackedIds once here so loadSources doesn't re-scan vault on every notebook change
+    const allNotes = this.app.vault.getMarkdownFiles();
+    for (const note of allNotes) {
+      const content = await this.app.vault.read(note);
+      const { sourceId } = parseSyncMeta(content);
+      if (sourceId) this.trackedIds.set(sourceId, note);
+    }
 
     new Setting(contentEl).setName("Notebook").addDropdown(async (dd) => {
       dd.addOption("", "Select notebook…");
@@ -33,20 +48,19 @@ export class PullModal extends Modal {
     containerEl.querySelector(".nlm-sources")?.remove();
     if (!this.notebook) return;
 
-    this.sources = await this.plugin.listSources(this.notebook.id);
-    const allNotes = this.app.vault.getMarkdownFiles();
-    const trackedIds = new Map<string, TFile>();
-    for (const note of allNotes) {
-      const content = await this.app.vault.read(note);
-      const { sourceId } = parseSyncMeta(content);
-      if (sourceId) trackedIds.set(sourceId, note);
+    try {
+      this.sources = await this.plugin.listSources(this.notebook.id);
+    } catch (e) {
+      const wrapper = containerEl.createDiv("nlm-sources");
+      wrapper.createEl("p", { text: `Failed to load sources: ${(e as Error).message}` });
+      return;
     }
 
     const wrapper = containerEl.createDiv("nlm-sources");
     wrapper.createEl("h3", { text: `${this.sources.length} sources` });
 
     this.sources.forEach((src) => {
-      const isTracked = trackedIds.has(src.id);
+      const isTracked = this.trackedIds.has(src.id);
       new Setting(wrapper)
         .setName(src.title)
         .setDesc(isTracked ? "↺ from vault" : "NEW")
@@ -59,7 +73,7 @@ export class PullModal extends Modal {
     });
 
     new Setting(wrapper).addButton((btn) =>
-      btn.setButtonText(`← Pull selected`).setCta().onClick(() => this.doPull(trackedIds))
+      btn.setButtonText(`← Pull selected`).setCta().onClick(() => this.doPull(this.trackedIds))
     );
   }
 

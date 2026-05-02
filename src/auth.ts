@@ -14,11 +14,19 @@ export interface StoredAuth {
  */
 export async function runOAuthFlow(): Promise<StoredAuth> {
   // BrowserWindow is only available in Electron desktop context
-  const { BrowserWindow } = (window as unknown as {
-    require: (m: string) => { BrowserWindow: typeof import("electron").BrowserWindow }
-  }).require("electron").remote ?? (window as unknown as {
-    require: (m: string) => unknown
-  }).require("@electron/remote");
+  let BrowserWindow: typeof import("electron").BrowserWindow;
+  try {
+    // Try modern @electron/remote first, then legacy remote
+    const electronRemote = (() => {
+      try { return (window as any).require("@electron/remote"); } catch { /* ignore */ }
+      const electron = (window as any).require("electron");
+      return electron.remote;
+    })();
+    if (!electronRemote?.BrowserWindow) throw new Error("Electron remote not available");
+    BrowserWindow = electronRemote.BrowserWindow;
+  } catch (e) {
+    throw new Error(`Could not access Electron BrowserWindow. Make sure you are using the desktop app. (${(e as Error).message})`);
+  }
 
   return new Promise((resolve, reject) => {
     let settled = false;

@@ -18,7 +18,12 @@ export class SyncModal extends Modal {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Push to NotebookLM" });
 
-    this.notebooks = await this.plugin.getNotebooks();
+    try {
+      this.notebooks = await this.plugin.getNotebooks();
+    } catch (e) {
+      contentEl.createEl("p", { text: `Failed to load notebooks: ${(e as Error).message}` });
+      return;
+    }
 
     // Notebook picker
     new Setting(contentEl).setName("Target notebook").addDropdown((dd) => {
@@ -109,19 +114,19 @@ export class SyncModal extends Modal {
         const contentForHash = stripFrontmatter(content);
         const hash = await computeHash(contentForHash);
 
-        let sourceId = meta.sourceId;
-
-        if (sourceId) {
-          // Re-push: delete old source first
-          await this.plugin.deleteSource(this.targetNotebook!.id, sourceId);
-        }
-
+        // Upload new source first
         const source = await this.plugin.addTextSource(
           this.targetNotebook!.id,
           file.basename,
           contentForHash
         );
-        sourceId = source.id;
+        // Only delete old source after new one is successfully uploaded
+        if (meta.sourceId && meta.notebookId === this.targetNotebook!.id) {
+          try {
+            await this.plugin.deleteSource(this.targetNotebook!.id, meta.sourceId);
+          } catch { /* non-fatal: old source may already be gone */ }
+        }
+        const sourceId = source.id;
 
         const updated = buildSyncFrontmatter(content, sourceId, this.targetNotebook!.id, hash);
         await this.app.vault.modify(file, updated);
