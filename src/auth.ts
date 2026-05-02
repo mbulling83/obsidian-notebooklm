@@ -7,26 +7,27 @@ export interface StoredAuth {
   connectedAt: number;
 }
 
+function getElectronRemote(): { BrowserWindow: typeof import("electron").BrowserWindow; session: typeof import("electron").session } {
+  try { return (window as any).require("@electron/remote"); } catch { /* ignore */ }
+  const electron = (window as any).require("electron");
+  if (!electron?.remote?.BrowserWindow) throw new Error("Electron remote not available");
+  return electron.remote;
+}
+
 /**
  * Opens an Electron BrowserWindow for Google OAuth.
- * After the user signs in and lands on notebooklm.google.com,
- * captures session cookies and fetches CSRF/session tokens.
+ * After login, injects cookies into the default session so requestUrl picks them up
+ * automatically — avoids issues with Cookie being dropped from manual headers.
  */
 export async function runOAuthFlow(): Promise<StoredAuth> {
-  // BrowserWindow is only available in Electron desktop context
-  let BrowserWindow: typeof import("electron").BrowserWindow;
+  let electronRemote: ReturnType<typeof getElectronRemote>;
   try {
-    // Try modern @electron/remote first, then legacy remote
-    const electronRemote = (() => {
-      try { return (window as any).require("@electron/remote"); } catch { /* ignore */ }
-      const electron = (window as any).require("electron");
-      return electron.remote;
-    })();
-    if (!electronRemote?.BrowserWindow) throw new Error("Electron remote not available");
-    BrowserWindow = electronRemote.BrowserWindow;
+    electronRemote = getElectronRemote();
   } catch (e) {
     throw new Error(`Could not access Electron BrowserWindow. Make sure you are using the desktop app. (${(e as Error).message})`);
   }
+
+  const { BrowserWindow, session: electronSession } = electronRemote;
 
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -42,27 +43,54 @@ export async function runOAuthFlow(): Promise<StoredAuth> {
 
     win.loadURL("https://notebooklm.google.com/");
 
-    // did-finish-load fires after each full page load — including after Google redirects
-    // back to NotebookLM post-login. We silently retry on every load until it succeeds.
+    // Fires after each full page load — retries silently until login is complete
     win.webContents.on("did-finish-load", async () => {
       const url = win.webContents.getURL();
       if (!url.startsWith("https://notebooklm.google.com/")) return;
 
       try {
-        const allCookies = await win.webContents.session.cookies.get({ domain: ".google.com" });
-        // Only proceed if a real session cookie is present (user is logged in)
+        // Get cookies from all relevant Google domains
+        const [dotCookies, nlmCookies] = await Promise.all([
+          win.webContents.session.cookies.get({ domain: ".google.com" }),
+          win.webContents.session.cookies.get({ domain: "notebooklm.google.com" }),
+        ]);
+        const seen = new Set<string>();
+        const allCookies = [...dotCookies, ...nlmCookies].filter(
+          c => !seen.has(c.name) && seen.add(c.name)
+        );
+
+        // Only proceed once a real session cookie exists (user is logged in)
         const hasSid = allCookies.some(c => c.name === "SID" || c.name === "__Secure-1PSID");
         if (!hasSid) return;
 
-        const cookieHeader = allCookies.map((c) => `${c.name}=${c.value}`).join("; ");
+        // Inject cookies into the default session so requestUrl uses them automatically
+        const defaultSes = electronSession.defaultSession;
+        for (const cookie of allCookies) {
+          const domain = cookie.domain.startsWith(".") ? cookie.domain.slice(1) : cookie.domain;
+          try {
+            await defaultSes.cookies.set({
+              url: `https://${domain}`,
+              name: cookie.name,
+              value: cookie.value,
+              domain: cookie.domain,
+              path: cookie.path ?? "/",
+              secure: cookie.secure ?? true,
+              httpOnly: cookie.httpOnly ?? false,
+              expirationDate: cookie.expirationDate,
+            });
+          } catch { /* skip invalid cookies */ }
+        }
 
-        // Extract tokens directly from the loaded page — avoids cross-context fetch issues
+        // Build cookie header string (kept for fallback / token refresh)
+        const cookieHeader = allCookies.map(c => `${c.name}=${c.value}`).join("; ");
+
+        // Extract CSRF + session tokens from the live page HTML
         const html: string = await win.webContents.executeJavaScript(
           "document.documentElement.innerHTML"
         );
         const csrfMatch = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
         const sessionMatch = html.match(/"FdrFJe"\s*:\s*"([^"]+)"/);
-        if (!csrfMatch || !sessionMatch) return; // Page still loading, wait for next load
+        if (!csrfMatch || !sessionMatch) return;
 
         const csrfToken = csrfMatch[1];
         const sessionId = sessionMatch[1];
@@ -70,7 +98,7 @@ export async function runOAuthFlow(): Promise<StoredAuth> {
         win.close();
         finish(() => resolve({ cookieHeader, csrfToken, sessionId, connectedAt: Date.now() }));
       } catch {
-        // Not ready yet — keep window open for user to complete login
+        // Not ready — keep window open
       }
     });
 

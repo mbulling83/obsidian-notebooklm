@@ -27,11 +27,15 @@ export class HttpRpcSession implements RpcSession {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-        Cookie: this.auth.cookieHeader,
+        "Cookie": this.auth.cookieHeader,
+        "Origin": "https://notebooklm.google.com",
+        "Referer": "https://notebooklm.google.com/",
+        "X-Same-Domain": "1",
       },
       body,
       throw: false,
     });
+    console.log(`[NotebookLM] ${methodId} → HTTP ${response.status}, body[0:200]: ${response.text?.slice(0, 200)}`);
     if (response.status === 401 || response.status === 403) {
       throw new NotebookLMAuthError();
     }

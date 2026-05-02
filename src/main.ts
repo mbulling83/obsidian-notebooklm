@@ -76,9 +76,10 @@ export default class NotebookLMPlugin extends Plugin {
       return await fn();
     } catch (e) {
       if (e instanceof NotebookLMAuthError) {
-        new Notice("Session expired — reconnect in settings");
-        this.settings.auth = null;
-        await this.saveSettings();
+        // Only clear auth if it looks like a genuine token expiry (not a transient 401)
+        // For now surface the error without clearing, so users don't have to re-authenticate
+        // on every network hiccup
+        new Notice("NotebookLM request failed — if this persists, reconnect in settings");
       }
       throw e;
     }
