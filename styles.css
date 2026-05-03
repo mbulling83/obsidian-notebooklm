@@ -165,12 +165,14 @@ p.nlm-hint {
 }
 
 .nlm-pill-remove {
-  appearance: none;
-  -webkit-appearance: none;
-  background: none;
-  border: none;
-  box-shadow: none;
-  color: var(--text-on-accent);
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: none !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: var(--text-on-accent) !important;
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
@@ -242,9 +244,14 @@ p.nlm-hint {
   color: var(--interactive-accent);
 }
 
-/* Push button row */
-.nlm-push-btn-row {
+/* Push modal header: title + push button side by side */
+.nlm-modal-header {
   display: flex;
-  justify-content: flex-end;
-  padding: 12px 0 4px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.nlm-modal-header h2 {
+  margin: 0;
 }

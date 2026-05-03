@@ -84,16 +84,21 @@ export async function runOAuthFlow(): Promise<StoredAuth> {
         // Build cookie header string (kept for fallback / token refresh)
         const cookieHeader = allCookies.map(c => `${c.name}=${c.value}`).join("; ");
 
-        // Extract CSRF + session tokens from the live page HTML
-        const html: string = await win.webContents.executeJavaScript(
-          "document.documentElement.innerHTML"
-        );
-        const csrfMatch = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
-        const sessionMatch = html.match(/"FdrFJe"\s*:\s*"([^"]+)"/);
-        if (!csrfMatch || !sessionMatch) return;
+        // Extract CSRF + session tokens: try WIZ_global_data first, fall back to HTML scraping
+        const tokens = await win.webContents.executeJavaScript(`
+          (() => {
+            const d = window.WIZ_global_data || {};
+            if (d.SNlM0e && d.FdrFJe) return { csrf: d.SNlM0e, sid: d.FdrFJe };
+            const h = document.documentElement.innerHTML;
+            const m1 = h.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+            const m2 = h.match(/"FdrFJe"\s*:\s*"([^"]+)"/);
+            return { csrf: m1 ? m1[1] : null, sid: m2 ? m2[1] : null };
+          })()
+        `) as { csrf: string | null; sid: string | null };
+        if (!tokens.csrf || !tokens.sid) return;
 
-        const csrfToken = csrfMatch[1];
-        const sessionId = sessionMatch[1];
+        const csrfToken = tokens.csrf;
+        const sessionId = tokens.sid;
 
         win.close();
         finish(() => resolve({ cookieHeader, csrfToken, sessionId, connectedAt: Date.now() }));
@@ -106,23 +111,6 @@ export async function runOAuthFlow(): Promise<StoredAuth> {
   });
 }
 
-/**
- * Fetch CSRF token (SNlM0e) and session ID (FdrFJe) from NotebookLM homepage.
- */
-export async function fetchTokens(cookieHeader: string): Promise<{ csrfToken: string; sessionId: string }> {
-  const response = await fetch("https://notebooklm.google.com/", {
-    headers: { Cookie: cookieHeader },
-  });
-  const html = await response.text();
-
-  const csrfMatch = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
-  const sessionMatch = html.match(/"FdrFJe"\s*:\s*"([^"]+)"/);
-
-  if (!csrfMatch) throw new Error("Could not extract CSRF token — try reconnecting");
-  if (!sessionMatch) throw new Error("Could not extract session ID — try reconnecting");
-
-  return { csrfToken: csrfMatch[1], sessionId: sessionMatch[1] };
-}
 
 export function storedAuthToTokens(stored: StoredAuth): AuthTokens {
   return {

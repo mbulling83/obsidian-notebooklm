@@ -20,7 +20,12 @@ export class SyncModal extends Modal {
 
   async onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "Push to NotebookLM" });
+
+    const headerEl = contentEl.createDiv("nlm-modal-header");
+    headerEl.createEl("h2", { text: "Push to NotebookLM" });
+    this.pushBtnEl = headerEl.createEl("button", { cls: "nlm-pull-btn" });
+    this.pushBtnEl.style.display = "none";
+    this.pushBtnEl.onclick = () => this.doPush();
 
     const loadingEl = this.showLoading(contentEl, "Loading notebooks…");
     try {
@@ -59,12 +64,7 @@ export class SyncModal extends Modal {
 
     this.searchResultsEl = containerEl.createDiv("nlm-search-results");
     this.updateResults();
-
-    const btnRow = containerEl.createDiv("nlm-push-btn-row");
-    this.pushBtnEl = btnRow.createEl("button", { cls: "nlm-pull-btn" });
-    this.pushBtnEl.disabled = true;
     this.updatePushBtn();
-    this.pushBtnEl.onclick = () => this.doPush();
   }
 
   private getFilteredFiles(): TFile[] {
@@ -151,6 +151,7 @@ export class SyncModal extends Modal {
     const n = this.selectedFiles.size;
     this.pushBtnEl.textContent = n > 0 ? `Push ${n} note${n !== 1 ? "s" : ""} →` : "Push →";
     this.pushBtnEl.disabled = n === 0;
+    this.pushBtnEl.style.display = n > 0 ? "" : "none";
   }
 
   private showLoading(container: HTMLElement, text: string): HTMLElement {
@@ -203,6 +204,7 @@ export class SyncModal extends Modal {
         if (meta.sourceId && meta.notebookId === this.targetNotebook!.id) {
           try { await this.plugin.deleteSource(this.targetNotebook!.id, meta.sourceId); }
           catch { /* non-fatal: old source may already be gone */ }
+          delete this.plugin.settings.sourceRegistry[meta.sourceId];
         }
 
         await this.app.vault.modify(

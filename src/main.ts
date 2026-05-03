@@ -124,14 +124,20 @@ export default class NotebookLMPlugin extends Plugin {
 
   async clearAllSyncMetadata() {
     const files = this.app.vault.getMarkdownFiles();
+    let cleared = 0;
     for (const file of files) {
-      const content = await this.app.vault.read(file);
-      const { sourceId } = parseSyncMeta(content);
-      if (sourceId) {
-        const stripped = stripFrontmatter(content);
-        await this.app.vault.modify(file, stripped);
+      try {
+        const content = await this.app.vault.read(file);
+        const { sourceId } = parseSyncMeta(content);
+        if (sourceId) {
+          await this.app.vault.modify(file, stripFrontmatter(content));
+          cleared++;
+        }
+      } catch (e) {
+        new Notice(`Could not clear metadata from ${file.name}: ${(e as Error).message}`);
       }
     }
+    if (cleared > 0) new Notice(`Cleared sync metadata from ${cleared} note${cleared !== 1 ? "s" : ""}`);
   }
 
   async loadSettings() {

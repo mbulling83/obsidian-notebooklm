@@ -3,7 +3,7 @@ import type { ToggleComponent } from "obsidian";
 import type NotebookLMPlugin from "../main";
 import type { NlmNotebook, NlmSource, NlmNote } from "../api/types";
 import { computeHash, buildSyncFrontmatter, buildNoteFrontmatter, parseSyncMeta, stripFrontmatter } from "../sync/push";
-import { detectConflict, conflictFileName, todayString } from "../sync/pull";
+import { detectConflict, conflictFileName, nowString } from "../sync/pull";
 
 export class PullModal extends Modal {
   private notebook: NlmNotebook | null = null;
@@ -14,6 +14,7 @@ export class PullModal extends Modal {
   private trackedSourceIds: Map<string, TFile> = new Map();
   private trackedNoteIds: Map<string, TFile> = new Map();
   private activeTab: "sources" | "notes" = "sources";
+  private isPulling = false;
 
   constructor(app: App, private plugin: NotebookLMPlugin) {
     super(app);
@@ -108,8 +109,8 @@ export class PullModal extends Modal {
     this.buildSourcesPanel(sourcesPanel, sourcesSelectAllBtn);
     this.buildNotesPanel(notesPanel, notesSelectAllBtn);
 
-    sourcesPullBtn.onclick = () => this.doPullSources();
-    notesPullBtn.onclick = () => this.doPullNotes();
+    sourcesPullBtn.onclick = () => { sourcesPullBtn.disabled = true; this.doPullSources(); };
+    notesPullBtn.onclick = () => { notesPullBtn.disabled = true; this.doPullNotes(); };
 
     const showTab = (tab: "sources" | "notes") => {
       this.activeTab = tab;
@@ -214,10 +215,12 @@ export class PullModal extends Modal {
   }
 
   private async doPullSources() {
+    if (this.isPulling) return;
     if (!this.notebook || this.selectedSources.size === 0) {
       new Notice("Select at least one source");
       return;
     }
+    this.isPulling = true;
     this.close();
     new Notice(`Pulling ${this.selectedSources.size} source(s)…`);
     let pulled = 0;
@@ -235,7 +238,7 @@ export class PullModal extends Modal {
           const conflict = detectConflict(syncedHash, currentHash);
 
           if (conflict === "conflict") {
-            const conflictName = conflictFileName(existingFile.name, todayString());
+            const conflictName = conflictFileName(existingFile.name, nowString());
             const conflictPath = existingFile.parent
               ? `${existingFile.parent.path}/${conflictName}`
               : conflictName;
@@ -250,7 +253,7 @@ export class PullModal extends Modal {
             );
           }
         } else {
-          const folder = `${this.plugin.settings.pullFolder}/${this.notebook!.title}`;
+          const folder = `${this.plugin.settings.pullFolder}/${sanitizeFilename(this.notebook!.title)}`;
           await this.ensureFolder(folder);
           const path = `${folder}/${sanitizeFilename(src.title)}.md`;
           // If this source was originally pushed from a vault file, prepend a backlink
@@ -273,10 +276,12 @@ export class PullModal extends Modal {
   }
 
   private async doPullNotes() {
+    if (this.isPulling) return;
     if (!this.notebook || this.selectedNotes.size === 0) {
       new Notice("Select at least one note");
       return;
     }
+    this.isPulling = true;
     this.close();
     new Notice(`Pulling ${this.selectedNotes.size} note(s)…`);
     let pulled = 0;
@@ -289,7 +294,7 @@ export class PullModal extends Modal {
         if (existingFile) {
           await this.app.vault.modify(existingFile, noteContent);
         } else {
-          const folder = `${this.plugin.settings.pullFolder}/${this.notebook!.title}/notes`;
+          const folder = `${this.plugin.settings.pullFolder}/${sanitizeFilename(this.notebook!.title)}/notes`;
           await this.ensureFolder(folder);
           const path = `${folder}/${sanitizeFilename(note.title || "Untitled Note")}.md`;
           await this.app.vault.create(path, noteContent);

@@ -16,3 +16,7 @@ export function conflictFileName(originalName: string, date: string): string {
 export function todayString(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+export function nowString(): string {
+  return new Date().toISOString().slice(0, 16).replace("T", " ");
+}

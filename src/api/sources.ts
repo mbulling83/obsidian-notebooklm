@@ -128,10 +128,7 @@ export class SourcesApi {
   }
 }
 
-/**
- * Recursively extract all non-empty strings from a nested array structure.
- * Mirrors Python's _extract_all_text() in _sources.py.
- */
+/** Recursively extract all non-empty strings from a nested array structure. */
 function extractAllText(data: unknown[], maxDepth = 100): string[] {
   if (maxDepth <= 0) return [];
   const texts: string[] = [];
