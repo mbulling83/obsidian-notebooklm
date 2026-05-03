@@ -250,6 +250,7 @@ p.nlm-hint {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  padding-right: 28px;
 }
 
 .nlm-modal-header h2 {
