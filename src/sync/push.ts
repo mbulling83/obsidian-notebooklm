@@ -1,5 +1,6 @@
 export interface SyncMeta {
   sourceId?: string;
+  noteId?: string;
   notebookId?: string;
   syncedHash?: string;
 }
@@ -13,7 +14,7 @@ export async function computeHash(content: string): Promise<string> {
     .join("");
 }
 
-const NLM_FIELDS = /^notebooklm_(source_id|notebook_id|synced_hash):.+\n?/gm;
+const NLM_FIELDS = /^notebooklm_(source_id|note_id|notebook_id|synced_hash):.+\n?/gm;
 
 export function stripFrontmatter(content: string): string {
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
@@ -25,9 +26,10 @@ export function stripFrontmatter(content: string): string {
 
 export function parseSyncMeta(content: string): SyncMeta {
   const sourceId = content.match(/^notebooklm_source_id:\s*(.+)$/m)?.[1]?.trim();
+  const noteId = content.match(/^notebooklm_note_id:\s*(.+)$/m)?.[1]?.trim();
   const notebookId = content.match(/^notebooklm_notebook_id:\s*(.+)$/m)?.[1]?.trim();
   const syncedHash = content.match(/^notebooklm_synced_hash:\s*(.+)$/m)?.[1]?.trim();
-  return { sourceId, notebookId, syncedHash };
+  return { sourceId, noteId, notebookId, syncedHash };
 }
 
 export function buildSyncFrontmatter(
@@ -48,4 +50,9 @@ export function buildSyncFrontmatter(
   const body = fmMatch[2];
   const fm = existing ? `${existing}\n${nlmFields}` : nlmFields;
   return `---\n${fm}\n---\n${body}`;
+}
+
+export function buildNoteFrontmatter(content: string, noteId: string, notebookId: string): string {
+  const nlmFields = `notebooklm_note_id: ${noteId}\nnotebooklm_notebook_id: ${notebookId}`;
+  return `---\n${nlmFields}\n---\n${content}`;
 }

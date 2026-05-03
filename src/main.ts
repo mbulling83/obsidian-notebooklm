@@ -4,7 +4,8 @@ import { storedAuthToTokens } from "./auth";
 import { HttpRpcSession } from "./api/session";
 import { NotebooksApi } from "./api/notebooks";
 import { SourcesApi } from "./api/sources";
-import type { NlmNotebook, NlmSource } from "./api/types";
+import { NotesApi } from "./api/notes";
+import type { NlmNotebook, NlmSource, NlmNote } from "./api/types";
 import type { SourceFulltext } from "./api/sources";
 import { NotebookLMSettingsTab } from "./ui/SettingsTab";
 import { SyncModal } from "./ui/SyncModal";
@@ -15,11 +16,13 @@ import { NotebookLMAuthError } from "./api/client";
 export interface NotebookLMSettings {
   auth: StoredAuth | null;
   pullFolder: string;
+  sourceRegistry: Record<string, string>; // sourceId → original vault file path
 }
 
 const DEFAULT_SETTINGS: NotebookLMSettings = {
   auth: null,
   pullFolder: "NotebookLM",
+  sourceRegistry: {},
 };
 
 export default class NotebookLMPlugin extends Plugin {
@@ -113,6 +116,10 @@ export default class NotebookLMPlugin extends Plugin {
     return this.withAuthRetry(() =>
       new SourcesApi(this.getSession()).delete(notebookId, sourceId)
     );
+  }
+
+  async listNotes(notebookId: string): Promise<NlmNote[]> {
+    return this.withAuthRetry(() => new NotesApi(this.getSession()).list(notebookId));
   }
 
   async clearAllSyncMetadata() {

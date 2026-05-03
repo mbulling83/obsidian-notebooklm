@@ -1,0 +1,247 @@
+/* ── Toolbar ──────────────────────────────────────────────── */
+
+.nlm-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.nlm-tab-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.nlm-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+  transition: background 0.1s, color 0.1s;
+}
+
+.nlm-tab:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
+
+.nlm-tab.is-active {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.nlm-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nlm-select-all-btn,
+.nlm-pull-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.nlm-select-all-btn {
+  border: 1px solid var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.nlm-select-all-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
+
+.nlm-pull-btn {
+  border: 1px solid var(--interactive-accent);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.nlm-pull-btn:hover {
+  background: var(--interactive-accent-hover);
+  border-color: var(--interactive-accent-hover);
+}
+
+/* ── Tab panels ───────────────────────────────────────────── */
+
+.nlm-tab-panel {
+  margin-top: 4px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Suppress Obsidian's own border on the first setting item —
+   the toolbar already provides the visual separator */
+.nlm-tab-panel .setting-item:first-child {
+  border-top: none;
+  padding-top: 12px;
+}
+
+.nlm-tab-panel .setting-item {
+  padding: 8px 0;
+}
+
+.nlm-tab-panel .setting-item:last-child {
+  padding-bottom: 4px;
+}
+
+.nlm-tab-panel > p {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: 16px 0 4px;
+}
+
+/* ── Loading ──────────────────────────────────────────────── */
+
+.nlm-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: 12px 0;
+}
+
+.nlm-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--background-modifier-border);
+  border-top-color: var(--interactive-accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: nlm-spin 0.7s linear infinite;
+}
+
+@keyframes nlm-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Sync modal — search UI ───────────────────────────────── */
+
+p.nlm-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: 8px 0;
+}
+
+/* Selected files pills */
+.nlm-selected-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 10px;
+}
+
+.nlm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  border-radius: 12px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+}
+
+.nlm-pill-label {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nlm-pill-remove {
+  background: none;
+  border: none;
+  color: var(--text-on-accent);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.7;
+}
+
+.nlm-pill-remove:hover {
+  opacity: 1;
+}
+
+/* Search results list */
+.nlm-search-results {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.nlm-result-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.nlm-result-row:last-child {
+  border-bottom: none;
+}
+
+.nlm-result-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.nlm-result-row.is-selected {
+  background: var(--background-modifier-active-hover);
+}
+
+.nlm-result-name {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nlm-result-path {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.nlm-result-icon {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.nlm-result-row.is-selected .nlm-result-icon {
+  color: var(--interactive-accent);
+}
+
+/* Push button row */
+.nlm-push-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 0 4px;
+}
