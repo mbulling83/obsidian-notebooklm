@@ -2,11 +2,11 @@ name: Release Obsidian Plugin
 
 on:
   push:
-    tags:
-      - "*"
+    branches:
+      - main
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -14,20 +14,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get version from manifest
+        id: version
+        run: echo "version=$(node -p "require('./manifest.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          if gh release view "${{ steps.version.outputs.version }}" 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Node.js
+        if: steps.check_release.outputs.exists == 'false'
         uses: actions/setup-node@v4
         with:
           node-version: "18"
 
       - name: Install dependencies
+        if: steps.check_release.outputs.exists == 'false'
         run: npm install
 
       - name: Build plugin
+        if: steps.check_release.outputs.exists == 'false'
         run: npm run build
 
       - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body: |
+            ## NotebookLM Sync ${{ steps.version.outputs.version }}
+
+            Install via [BRAT](https://github.com/TfTHacker/obsidian42-brat):
+            1. Install BRAT from the Obsidian Community Plugins
+            2. Open BRAT settings → Add Beta Plugin
+            3. Enter: `mbulling83/obsidian-notebooklm`
           files: |
             main.js
             manifest.json
