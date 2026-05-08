@@ -6,7 +6,7 @@ import { computeHash, stripFrontmatter, buildSyncFrontmatter, parseSyncMeta } fr
 const MAX_RESULTS = 15;
 
 // Extensions pushed as raw binary (via file upload RPC)
-const BINARY_EXTENSIONS = new Set(["pdf"]);
+const BINARY_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
 // Extensions pushed as plain text (no frontmatter read/write)
 const PLAIN_TEXT_EXTENSIONS = new Set(["txt"]);
 const SUPPORTED_EXTENSIONS = new Set(["md", ...BINARY_EXTENSIONS, ...PLAIN_TEXT_EXTENSIONS]);
@@ -93,7 +93,7 @@ export class SyncModal extends Modal {
     const q = this.searchQuery.trim();
     if (!q) {
       this.searchResultsEl.createEl("p", {
-        text: "Start typing to search your vault (md, pdf, txt).",
+        text: "Start typing to search your vault (md, pdf, txt, jpg, png).",
         cls: "nlm-hint",
       });
       return;

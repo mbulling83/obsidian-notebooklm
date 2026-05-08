@@ -1,7 +1,7 @@
 {
   "id": "notebooklm-sync",
   "name": "NotebookLM Sync",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minAppVersion": "1.4.0",
   "description": "Two-way selective sync between your vault and Google NotebookLM",
   "author": "mbulling83",
