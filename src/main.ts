@@ -106,6 +106,10 @@ export default class NotebookLMPlugin extends Plugin {
     );
   }
 
+  async addFileSource(notebookId: string, filename: string, data: ArrayBuffer): Promise<NlmSource> {
+    return this.withAuthRetry(() => this.getSession().uploadFileSource(notebookId, filename, data));
+  }
+
   async getSourceFulltext(notebookId: string, sourceId: string): Promise<SourceFulltext> {
     return this.withAuthRetry(() =>
       new SourcesApi(this.getSession()).getFulltext(notebookId, sourceId)

@@ -5,6 +5,12 @@ import { computeHash, stripFrontmatter, buildSyncFrontmatter, parseSyncMeta } fr
 
 const MAX_RESULTS = 15;
 
+// Extensions pushed as raw binary (via file upload RPC)
+const BINARY_EXTENSIONS = new Set(["pdf"]);
+// Extensions pushed as plain text (no frontmatter read/write)
+const PLAIN_TEXT_EXTENSIONS = new Set(["txt"]);
+const SUPPORTED_EXTENSIONS = new Set(["md", ...BINARY_EXTENSIONS, ...PLAIN_TEXT_EXTENSIONS]);
+
 export class SyncModal extends Modal {
   private selectedFiles: Set<TFile> = new Set();
   private targetNotebook: NlmNotebook | null = null;
@@ -51,7 +57,7 @@ export class SyncModal extends Modal {
   }
 
   private buildSearchUI(containerEl: HTMLElement) {
-    new Setting(containerEl).setName("Search notes").addSearch((search) => {
+    new Setting(containerEl).setName("Search files").addSearch((search) => {
       search.setPlaceholder("Type to search…").onChange((val) => {
         this.searchQuery = val;
         this.updateResults();
@@ -71,8 +77,8 @@ export class SyncModal extends Modal {
     const q = this.searchQuery.trim().toLowerCase();
     const pullPrefix = this.plugin.settings.pullFolder + "/";
     const all = this.app.vault
-      .getMarkdownFiles()
-      .filter((f) => !f.path.startsWith(pullPrefix));
+      .getFiles()
+      .filter((f) => SUPPORTED_EXTENSIONS.has(f.extension) && !f.path.startsWith(pullPrefix));
 
     if (!q) return [];
     return all
@@ -87,7 +93,7 @@ export class SyncModal extends Modal {
     const q = this.searchQuery.trim();
     if (!q) {
       this.searchResultsEl.createEl("p", {
-        text: "Start typing to search your vault.",
+        text: "Start typing to search your vault (md, pdf, txt).",
         cls: "nlm-hint",
       });
       return;
@@ -107,7 +113,7 @@ export class SyncModal extends Modal {
       const row = this.searchResultsEl!.createDiv({
         cls: `nlm-result-row${isSelected ? " is-selected" : ""}`,
       });
-      row.createEl("span", { text: file.basename, cls: "nlm-result-name" });
+      row.createEl("span", { text: file.extension === "md" ? file.basename : file.name, cls: "nlm-result-name" });
       if (file.parent && file.parent.path) {
         row.createEl("span", { text: file.parent.path, cls: "nlm-result-path" });
       }
@@ -134,7 +140,7 @@ export class SyncModal extends Modal {
     this.selectedPillsEl.style.display = "";
     for (const file of this.selectedFiles) {
       const pill = this.selectedPillsEl.createEl("span", { cls: "nlm-pill" });
-      pill.createEl("span", { text: file.basename, cls: "nlm-pill-label" });
+      pill.createEl("span", { text: file.extension === "md" ? file.basename : file.name, cls: "nlm-pill-label" });
       const remove = pill.createEl("button", { text: "×", cls: "nlm-pill-remove" });
       remove.onclick = (e) => {
         e.stopPropagation();
@@ -149,7 +155,7 @@ export class SyncModal extends Modal {
   private updatePushBtn() {
     if (!this.pushBtnEl) return;
     const n = this.selectedFiles.size;
-    this.pushBtnEl.textContent = n > 0 ? `Push ${n} note${n !== 1 ? "s" : ""} →` : "Push →";
+    this.pushBtnEl.textContent = n > 0 ? `Push ${n} file${n !== 1 ? "s" : ""} →` : "Push →";
     this.pushBtnEl.disabled = n === 0;
     this.pushBtnEl.style.display = n > 0 ? "" : "none";
   }
@@ -186,32 +192,43 @@ export class SyncModal extends Modal {
     if (files.length === 0) { new Notice("Select at least one note"); return; }
 
     this.close();
-    new Notice(`Pushing ${files.length} note(s)…`);
+    new Notice(`Pushing ${files.length} file${files.length !== 1 ? "s" : ""}…`);
     let pushed = 0;
 
     for (const file of files) {
       try {
-        const content = await this.app.vault.read(file);
-        const meta = parseSyncMeta(content);
-        const contentForHash = stripFrontmatter(content);
-        const hash = await computeHash(contentForHash);
+        let source;
+        if (BINARY_EXTENSIONS.has(file.extension)) {
+          const data = await this.app.vault.readBinary(file);
+          source = await this.plugin.addFileSource(this.targetNotebook!.id, file.name, data);
+        } else {
+          // .md or .txt
+          const content = await this.app.vault.read(file);
+          const isMd = file.extension === "md";
+          const contentForPush = isMd ? stripFrontmatter(content) : content;
 
-        const source = await this.plugin.addTextSource(
-          this.targetNotebook!.id,
-          file.basename,
-          contentForHash
-        );
-        if (meta.sourceId && meta.notebookId === this.targetNotebook!.id) {
-          try { await this.plugin.deleteSource(this.targetNotebook!.id, meta.sourceId); }
-          catch { /* non-fatal: old source may already be gone */ }
-          delete this.plugin.settings.sourceRegistry[meta.sourceId];
+          source = await this.plugin.addTextSource(
+            this.targetNotebook!.id,
+            file.basename,
+            contentForPush
+          );
+
+          if (isMd) {
+            const meta = parseSyncMeta(content);
+            const hash = await computeHash(contentForPush);
+            if (meta.sourceId && meta.notebookId === this.targetNotebook!.id) {
+              try { await this.plugin.deleteSource(this.targetNotebook!.id, meta.sourceId); }
+              catch { /* non-fatal: old source may already be gone */ }
+              delete this.plugin.settings.sourceRegistry[meta.sourceId];
+            }
+            await this.app.vault.modify(
+              file,
+              buildSyncFrontmatter(content, source.id, this.targetNotebook!.id, hash)
+            );
+          }
         }
 
-        await this.app.vault.modify(
-          file,
-          buildSyncFrontmatter(content, source.id, this.targetNotebook!.id, hash)
-        );
-        // Record original path in registry for pull-side backlinks
+        // Record path in registry for pull-side backlinks
         this.plugin.settings.sourceRegistry[source.id] = file.path;
         pushed++;
       } catch (e) {
@@ -220,7 +237,7 @@ export class SyncModal extends Modal {
     }
 
     await this.plugin.saveSettings();
-    new Notice(`Pushed ${pushed}/${files.length} note(s) to NotebookLM`);
+    new Notice(`Pushed ${pushed}/${files.length} file${files.length !== 1 ? "s" : ""} to NotebookLM`);
   }
 
   onClose() {
